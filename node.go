@@ -15,7 +15,7 @@ type Node struct {
 	Conn     *zk.Conn
 	ZkPath   ZK_PATH
 	Sharding Sharding
-	event    chan struct{}
+	Event    chan struct{}
 }
 
 func (node *Node) Start(strategy Strategy, responseTimeout time.Duration) {
@@ -55,7 +55,7 @@ func (node *Node) listenBroadCast() {
 			}
 
 			node.Sharding.Decode(data)
-			node.event <- struct{}{}
+			node.Event <- struct{}{}
 			node.response()
 		}
 	}

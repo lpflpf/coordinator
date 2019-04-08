@@ -39,9 +39,10 @@ func (c *coordinator) createPath() {
 		}
 	}
 
-	if isExist, _, err := c.node.Conn.Exists(c.node.ZkPath.broadCast()); err != nil {
-		Logger.Fatalf("exists %s method err: %v", c.node.ZkPath.broadCast(), err)
+	if isExist, _, err := c.node.Conn.Exists(c.node.ZkPath.root()); err != nil {
+		Logger.Fatalf("exists %s method err: %v", c.node.ZkPath.root(), err)
 	} else if !isExist {
+		createNodeFunc(c.node.ZkPath.root(), []byte{})
 		createNodeFunc(c.node.ZkPath.broadCast(), c.node.Sharding.Encode())
 		createNodeFunc(c.node.ZkPath.response(), []byte{})
 		createNodeFunc(c.node.ZkPath.version(), []byte("0"))

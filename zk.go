@@ -9,6 +9,10 @@ const ZK_PATH_INIT_LOCK = "LOCK_INIT"
 
 type ZK_PATH string
 
+func (prefix ZK_PATH) root() string {
+	return string(prefix)
+}
+
 func (prefix ZK_PATH) registerCenter() string {
 	return string(prefix) + "/" + ZK_PATH_RC
 }

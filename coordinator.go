@@ -2,6 +2,7 @@ package coordinator
 
 import (
 	"errors"
+	"fmt"
 	"github.com/samuel/go-zookeeper/zk"
 	"log"
 	"os"
@@ -10,6 +11,8 @@ import (
 )
 
 var Logger = log.New(os.Stdout, "", log.Llongfile|log.LstdFlags)
+
+type none struct{}
 
 // 一个协调器应具备如下功能：
 // 首先，一个协调器是一个节点
@@ -42,14 +45,14 @@ func (c *coordinator) createPath() {
 	if isExist, _, err := c.node.Conn.Exists(c.node.ZkPath.broadCast()); err != nil {
 		Logger.Fatalf("exists %s method err: %v", c.node.ZkPath.broadCast(), err)
 	} else if !isExist {
-		createNodeFunc(c.node.ZkPath.broadCast(), c.node.Sharding.Encode())
+		createNodeFunc(c.node.ZkPath.broadCast(), []byte{})
 		createNodeFunc(c.node.ZkPath.response(), []byte{})
 		createNodeFunc(c.node.ZkPath.version(), []byte("0"))
 		createNodeFunc(c.node.ZkPath.registerCenter(), []byte{})
 	}
 }
 
-func (c *coordinator) listen() {
+func (c *coordinator) listen(afterListen chan struct{}) {
 
 	for {
 		_, state, e, err := c.node.Conn.ChildrenW(c.node.ZkPath.registerCenter())
@@ -57,9 +60,11 @@ func (c *coordinator) listen() {
 			Logger.Fatal(err)
 			continue
 		}
+		afterListen <- struct{}{}
 		select {
 		case event := <-e:
 			if event.Type == zk.EventNodeChildrenChanged {
+				Logger.Println("get children changed message.")
 				c.reBalance(int(state.Cversion))
 			}
 		}
@@ -86,15 +91,19 @@ func (c *coordinator) reBalance(version int) {
 	if c.checkIsOk(version) {
 		return
 	}
+
 	nodes := c.getCurrentLiveNode()
 	c.loadSharding()
+
+	responseBefore, responseEnd := make(chan none), make(chan error)
+
+	go c.waitingResponse(nodes, responseBefore, responseEnd)
+	<-responseBefore
 	c.broadCastSharding(c.strategy.ReBalance(c.sharding, nodes))
-	if err := c.waitingResponse(nodes); err == nil {
+	if <-responseEnd == nil {
 		if err := c.updateVersion(version); err != nil {
 			Logger.Fatalf("rebalance failed, update version failed. %v", err)
 		}
-	} else {
-		Logger.Fatalf("rebalance failed, %v", err)
 	}
 }
 
@@ -104,20 +113,25 @@ func (c *coordinator) getCurrentLiveNode() []string {
 		Logger.Fatal(err)
 	}
 
+	Logger.Println("get Live Node: ", children)
 	return children
 }
 
 func (c *coordinator) loadSharding() {
 	// 若不存在broadcast，则以node 节点传入的sharding 为准（第一次初始化）
-	if isExist, _, err := c.node.Conn.Exists(c.node.ZkPath.broadCast()); err == nil && isExist {
-		data, stat, err := c.node.Conn.Get(c.node.ZkPath.broadCast())
-		if err != nil {
-			Logger.Fatal(err)
-		}
-
+	data, stat, err := c.node.Conn.Get(c.node.ZkPath.broadCast())
+	if err != nil {
+		Logger.Fatal(err)
+	}
+	Logger.Println("broadcast data: ", string(data))
+	if len(data) == 0 {
+		c.sharding = c.node.Sharding
+	} else {
 		c.broadcast.version = stat.Version
 		c.sharding.Decode(data)
 	}
+
+	Logger.Println("current sharding: ", c.sharding)
 }
 
 func (c *coordinator) broadCastSharding(sharding Sharding) {
@@ -143,22 +157,26 @@ func (c *coordinator) clearResponse() {
 	}
 }
 
-func (c *coordinator) waitingResponse(nodes []string) error {
+func (c *coordinator) waitingResponse(nodes []string, before chan none, after chan error) {
+	c.clearResponse()
 	timer := time.NewTimer(c.responseTimeout)
-
 	for {
 		_, _, event, err := c.node.Conn.ChildrenW(c.node.ZkPath.response())
 		if err != nil {
 			Logger.Fatal(err)
 		}
+		before <- none{}
 		select {
 		case <-timer.C:
-			return errors.New("cannot get all response.")
+			after <- errors.New("wait response timeout, cannot get all response. \n")
+			return
 		case <-event:
 			children, _, err := c.node.Conn.Children(c.node.ZkPath.response())
 			if err != nil {
-				return err
+				after <- err
+				return
 			}
+			fmt.Println(children)
 			if len(children) < len(nodes) {
 				continue
 			} else {
@@ -169,10 +187,10 @@ func (c *coordinator) waitingResponse(nodes []string) error {
 				}
 				for _, node := range nodes {
 					if _, ok := childMap[node]; !ok {
-						return errors.New("no")
+						after <- errors.New("no response.\n")
 					}
 				}
-				return nil
+				after <- nil
 			}
 		}
 	}

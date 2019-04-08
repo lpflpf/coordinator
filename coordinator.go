@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-var Logger = log.New(os.Stdout, "", log.LstdFlags)
+var Logger = log.New(os.Stdout, "", log.Llongfile|log.LstdFlags)
 
 // 一个协调器应具备如下功能：
 // 首先，一个协调器是一个节点
@@ -32,17 +32,16 @@ func (c *coordinator) createPath() {
 	defer func() { _ = lock.Unlock() }()
 
 	createNodeFunc := func(zkPath string, data []byte) {
-		if path, err := c.node.Conn.Create(zkPath, data, zk.FlagSequence, zk.WorldACL(zk.PermAll)); err == nil {
+		if path, err := c.node.Conn.Create(zkPath, data, 0, zk.WorldACL(zk.PermAll)); err == nil {
 			Logger.Printf("create path: %s succeed.", path)
 		} else {
 			Logger.Fatalf("create path: %s err: %v", path, err)
 		}
 	}
 
-	if isExist, _, err := c.node.Conn.Exists(c.node.ZkPath.root()); err != nil {
-		Logger.Fatalf("exists %s method err: %v", c.node.ZkPath.root(), err)
+	if isExist, _, err := c.node.Conn.Exists(c.node.ZkPath.broadCast()); err != nil {
+		Logger.Fatalf("exists %s method err: %v", c.node.ZkPath.broadCast(), err)
 	} else if !isExist {
-		createNodeFunc(c.node.ZkPath.root(), []byte{})
 		createNodeFunc(c.node.ZkPath.broadCast(), c.node.Sharding.Encode())
 		createNodeFunc(c.node.ZkPath.response(), []byte{})
 		createNodeFunc(c.node.ZkPath.version(), []byte("0"))
@@ -51,7 +50,7 @@ func (c *coordinator) createPath() {
 }
 
 func (c *coordinator) listen() {
-	c.createPath()
+
 	for {
 		_, state, e, err := c.node.Conn.ChildrenW(c.node.ZkPath.registerCenter())
 		if err != nil {
@@ -73,6 +72,12 @@ func (c *coordinator) newLock() *zk.Lock {
 
 func (c *coordinator) reBalance(version int) {
 	lock := c.newLock()
+
+	if err := lock.Lock(); err != nil {
+		Logger.Fatalf("lock err: %v", err)
+		return
+	}
+
 	defer func() {
 		if err := lock.Unlock(); err != nil {
 			Logger.Fatal(err)

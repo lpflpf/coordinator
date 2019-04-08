@@ -17,6 +17,10 @@ func (prefix ZK_PATH) registerCenter() string {
 	return string(prefix) + "/" + ZK_PATH_RC
 }
 
+func (prefix ZK_PATH) registerCenterNode(nodeId string) string {
+	return string(prefix) + "/" + ZK_PATH_RC + "/" + nodeId
+}
+
 func (prefix ZK_PATH) broadCast() string {
 	return string(prefix) + "/" + ZK_PATH_BC
 }

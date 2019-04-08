@@ -25,12 +25,13 @@ func (node *Node) Start(strategy Strategy, responseTimeout time.Duration) {
 		sharding:        node.Sharding,
 		responseTimeout: responseTimeout,
 	}
+	coordinator.createPath()
 	go coordinator.listen()
 	go node.listenBroadCast()
 }
 
 func (node *Node) registerCenter() {
-	_, err := node.Conn.Create("", []byte(node.Id), zk.FlagEphemeral, nil)
+	_, err := node.Conn.Create(node.ZkPath.registerCenterNode(node.Id), []byte(node.Id), zk.FlagEphemeral, zk.WorldACL(zk.PermAll))
 
 	if err != nil {
 		log.Fatalf("register center failed.%v", err)

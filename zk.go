@@ -3,8 +3,9 @@ package coordinator
 const ZK_PATH_RC = "REGISTER_CENTER"
 const ZK_PATH_BC = "BROADCAST"
 const ZK_PATH_RE = "RESPONSE"
-const ZK_PATH_COOR = "LOCK_COORDINATOR"
+const ZK_PATH_COOR_LOCK = "LOCK_COORDINATOR"
 const ZK_PATH_VERSION = "VERSION"
+const ZK_PATH_INIT_LOCK = "LOCK_INIT"
 
 type ZK_PATH string
 
@@ -25,9 +26,13 @@ func (prefix ZK_PATH) responseNode(nodeId string) string {
 }
 
 func (prefix ZK_PATH) coordinatorLock() string {
-	return string(prefix) + "/" + ZK_PATH_COOR
+	return string(prefix) + "/" + ZK_PATH_COOR_LOCK
 }
 
 func (prefix ZK_PATH) version() string {
 	return string(prefix) + "/" + ZK_PATH_VERSION
+}
+
+func (prefix ZK_PATH) coordinatorInitLock() string {
+	return string(prefix) + "/" + ZK_PATH_INIT_LOCK
 }

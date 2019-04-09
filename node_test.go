@@ -1,7 +1,6 @@
 package coordinator
 
 import (
-	"github.com/qiniu/log"
 	"github.com/samuel/go-zookeeper/zk"
 	"math/rand"
 	"strconv"
@@ -20,10 +19,8 @@ func envInit(zkPath string) {
 	root := ZK_PATH(zkPath)
 
 	deletePath := func(path string) {
-		_, state, err := conn.Get(path)
-		Logger.Println("GET PATH ", path, err)
-		err = conn.Delete(path, state.Version)
-		Logger.Println("DELETE PATH ", path, err)
+		_, state, _ := conn.Get(path)
+		_ = conn.Delete(path, state.Version)
 	}
 	deleteDir := func(path string) {
 		if children, _, err := conn.Children(path); err == nil {
@@ -69,8 +66,17 @@ func compareSimpleSharding(s1, s2 SimpleSharding) bool {
 		} else if len(val1) != len(val2) {
 			return false
 		} else {
-			for idx, val11 := range val1 {
-				if val2[idx] != val11 {
+			set := map[int64]none{}
+			for _, val21 := range val1 {
+				set[val21] = none{}
+			}
+
+			if len(set) != len(val1) {
+				return false
+			}
+
+			for _, val22 := range val2 {
+				if _, ok := set[val22]; !ok {
 					return false
 				}
 			}
@@ -132,9 +138,9 @@ func TestSimpleSharding_Decode(t *testing.T) {
 		simpleSharding.Decode(data)
 
 		if compareSimpleSharding(simpleSharding, curr) {
-			log.Info("simple sharding encode/decode ok", curr)
+			t.Log("simple sharding encode/decode ok", curr)
 		} else {
-			log.Info("simple sharding encode/decode data not identical.")
+			t.Error("simple sharding encode/decode data not identical.")
 		}
 	}
 

@@ -7,9 +7,7 @@ import (
 	"time"
 )
 
-/**
- * 一个节点，应该有Zk，Id
- */
+// Using Node, just create a Node struct, and call start method.
 type Node struct {
 	Id       string
 	Conn     *zk.Conn
@@ -18,12 +16,14 @@ type Node struct {
 	Event    chan struct{}
 }
 
-func (node *Node) Start(strategy Strategy, responseTimeout time.Duration) {
+// start method will create a coordinator, listen coordinator broadcast.
+// strategy must be implement by user.
+func (node *Node) Start(strategy Strategy, timeout time.Duration) {
 	coordinator := coordinator{
 		node:            node,
 		strategy:        strategy,
 		sharding:        node.Sharding,
-		responseTimeout: responseTimeout,
+		responseTimeout: timeout,
 	}
 	coordinator.createPath()
 	afterListen := make(chan struct{})
@@ -62,9 +62,8 @@ func (node *Node) listenBroadCast() {
 
 			Logger.Println("get broadcast message.", string(data))
 			node.Sharding.Decode(data)
-			node.Event <- none{}
-
 			node.response()
+			node.Event <- none{}
 		}
 	}
 }

@@ -2,7 +2,6 @@ package coordinator
 
 import (
 	"errors"
-	"fmt"
 	"github.com/samuel/go-zookeeper/zk"
 	"log"
 	"os"
@@ -136,7 +135,6 @@ func (c *coordinator) loadSharding() {
 }
 
 func (c *coordinator) broadCastSharding(sharding Sharding) {
-	Logger.Println("SET BROADCAST: ", sharding)
 	_, err := c.node.Conn.Set(c.node.ZkPath.broadCast(), sharding.Encode(), c.broadcast.version)
 
 	if err != nil {
@@ -161,6 +159,7 @@ func (c *coordinator) clearResponse() {
 
 func (c *coordinator) waitingResponse(nodes []string, before chan none, after chan error) {
 	c.clearResponse()
+	c.node.Conn.State()
 	timer := time.NewTimer(c.responseTimeout)
 	for {
 		_, _, event, err := c.node.Conn.ChildrenW(c.node.ZkPath.response())
@@ -178,7 +177,6 @@ func (c *coordinator) waitingResponse(nodes []string, before chan none, after ch
 				after <- err
 				return
 			}
-			fmt.Println(children)
 			if len(children) < len(nodes) {
 				continue
 			} else {

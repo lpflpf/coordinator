@@ -9,10 +9,6 @@ type SimpleStrategy struct{}
 func (strategy SimpleStrategy) ReBalance(sharding Sharding, currentLiveNodes []string) Sharding {
 	simpleSharding := sharding.(SimpleSharding)
 
-	//if len(currentLiveNodes) == len(simpleSharding) {
-	//	return sharding
-	//}
-
 	newSimpleSharding := SimpleSharding{}
 	for _, node := range currentLiveNodes {
 		newSimpleSharding[node] = []int64{}

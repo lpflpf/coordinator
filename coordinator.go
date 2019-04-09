@@ -47,7 +47,7 @@ func (c *coordinator) createPath() {
 	} else if !isExist {
 		createNodeFunc(c.node.ZkPath.broadCast(), []byte{})
 		createNodeFunc(c.node.ZkPath.response(), []byte{})
-		createNodeFunc(c.node.ZkPath.version(), []byte("0"))
+		createNodeFunc(c.node.ZkPath.version(), []byte("-1"))
 		createNodeFunc(c.node.ZkPath.registerCenter(), []byte{})
 	}
 }
@@ -89,6 +89,7 @@ func (c *coordinator) reBalance(version int) {
 		}
 	}()
 	if c.checkIsOk(version) {
+		Logger.Fatalln("version larger than current.", version)
 		return
 	}
 
@@ -123,7 +124,7 @@ func (c *coordinator) loadSharding() {
 	if err != nil {
 		Logger.Fatal(err)
 	}
-	Logger.Println("broadcast data: ", string(data))
+	Logger.Println("broadcast data: ", string(data), ", node sharding: ", c.node.Sharding)
 	if len(data) == 0 {
 		c.sharding = c.node.Sharding
 	} else {
@@ -135,6 +136,7 @@ func (c *coordinator) loadSharding() {
 }
 
 func (c *coordinator) broadCastSharding(sharding Sharding) {
+	Logger.Println("SET BROADCAST: ", sharding)
 	_, err := c.node.Conn.Set(c.node.ZkPath.broadCast(), sharding.Encode(), c.broadcast.version)
 
 	if err != nil {
@@ -222,5 +224,6 @@ func (c *coordinator) checkIsOk(version int) bool {
 	}
 
 	curVersion, _ := strconv.Atoi(string(data))
+	Logger.Println("current version: ", curVersion)
 	return curVersion >= version
 }

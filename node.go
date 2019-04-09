@@ -33,7 +33,7 @@ func (node *Node) Start(strategy Strategy, responseTimeout time.Duration) {
 }
 
 func (node *Node) registerCenter() {
-	_, err := node.Conn.Create(node.ZkPath.registerCenterNode(node.Id), []byte(node.Id), 0, zk.WorldACL(zk.PermAll))
+	_, err := node.Conn.Create(node.ZkPath.registerCenterNode(node.Id), []byte(node.Id), zk.FlagEphemeral, zk.WorldACL(zk.PermAll))
 	Logger.Println("register center")
 	if err == zk.ErrNodeExists || err == nil {
 		return

@@ -15,5 +15,8 @@ func (sharding SimpleSharding) Encode() []byte {
 }
 
 func (sharding SimpleSharding) Decode(data []byte) {
+	for key, _ := range sharding {
+		delete(sharding, key)
+	}
 	_ = json.Unmarshal(data, &sharding)
 }

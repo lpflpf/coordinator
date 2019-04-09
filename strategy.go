@@ -1,7 +1,5 @@
 package coordinator
 
-import "fmt"
-
 type Strategy interface {
 	ReBalance(sharding Sharding, currentLiveNodes []string) Sharding
 }
@@ -26,12 +24,15 @@ func (strategy SimpleStrategy) ReBalance(sharding Sharding, currentLiveNodes []s
 	}
 
 	iter := 0
+
+	Logger.Println("current Job: ", allJobs)
 	for _, job := range allJobs {
 		iter = (iter) % len(currentLiveNodes)
 		node := currentLiveNodes[iter]
 		newSimpleSharding[node] = append(newSimpleSharding[node], job)
+		iter++
 	}
 
-	fmt.Println("NEW SHARDING: ", newSimpleSharding)
+	Logger.Println("NEW SHARDING: ", newSimpleSharding)
 	return newSimpleSharding
 }

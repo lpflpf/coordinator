@@ -1,19 +1,20 @@
 package coordinator
 
 import (
-	"github.com/samuel/go-zookeeper/zk"
 	"log"
 	"sync"
 	"time"
+
+	"github.com/samuel/go-zookeeper/zk"
 )
 
 // Using Node, just create a Node struct, and call start method.
 type Node struct {
 	Id       string
 	Conn     *zk.Conn
-	ZkPath   ZK_PATH
+	ZkPath   ZkPath
 	Sharding Sharding
-	Event    chan struct{}
+	Event    chan none
 }
 
 // start method will create a coordinator, listen coordinator broadcast.
@@ -26,7 +27,7 @@ func (node *Node) Start(strategy Strategy, timeout time.Duration) {
 		responseTimeout: timeout,
 	}
 	coordinator.createPath()
-	afterListen := make(chan struct{})
+	afterListen := make(chan none)
 	go coordinator.listen(afterListen)
 	<-afterListen
 	go node.listenBroadCast()

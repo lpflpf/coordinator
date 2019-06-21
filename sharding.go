@@ -27,7 +27,7 @@ func (sharding SimpleSharding) Decode(data []byte) {
 }
 
 func (sharding SimpleSharding) Clear() {
-	for key, _ := range sharding {
+	for key := range sharding {
 		delete(sharding, key)
 	}
 }

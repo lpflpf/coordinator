@@ -16,7 +16,7 @@ func getZkConn() *zk.Conn {
 func envInit(zkPath string) {
 	conn := getZkConn()
 	defer conn.Close()
-	root := ZK_PATH(zkPath)
+	root := ZkPath(zkPath)
 
 	deletePath := func(path string) {
 		_, state, _ := conn.Get(path)
@@ -51,7 +51,7 @@ func newNode() Node {
 		Sharding: SimpleSharding(map[string][]int64{
 			id: {1, 2, 3, 4, 5, 6, 7, 8, 9, 0},
 		}),
-		Event: make(chan struct{}),
+		Event: make(chan none),
 	}
 }
 

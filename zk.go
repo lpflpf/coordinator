@@ -1,46 +1,46 @@
 package coordinator
 
-const ZK_PATH_RC = "REGISTER_CENTER"
-const ZK_PATH_BC = "BROADCAST"
-const ZK_PATH_RE = "RESPONSE"
-const ZK_PATH_COOR_LOCK = "LOCK_COORDINATOR"
-const ZK_PATH_VERSION = "VERSION"
-const ZK_PATH_INIT_LOCK = "LOCK_INIT"
+const ZkPathRc = "REGISTER_CENTER"
+const ZkPathBc = "BROADCAST"
+const ZkPathRe = "RESPONSE"
+const ZkPathCoorLock = "LOCK_COORDINATOR"
+const ZkPathVersion = "VERSION"
+const ZkPathInitLock = "LOCK_INIT"
 
-type ZK_PATH string
+type ZkPath string
 
-func (prefix ZK_PATH) root() string {
+func (prefix ZkPath) root() string {
 	return string(prefix)
 }
 
-func (prefix ZK_PATH) registerCenter() string {
-	return string(prefix) + "/" + ZK_PATH_RC
+func (prefix ZkPath) registerCenter() string {
+	return string(prefix) + "/" + ZkPathRc
 }
 
-func (prefix ZK_PATH) registerCenterNode(nodeId string) string {
-	return string(prefix) + "/" + ZK_PATH_RC + "/" + nodeId
+func (prefix ZkPath) registerCenterNode(nodeId string) string {
+	return string(prefix) + "/" + ZkPathRc + "/" + nodeId
 }
 
-func (prefix ZK_PATH) broadCast() string {
-	return string(prefix) + "/" + ZK_PATH_BC
+func (prefix ZkPath) broadCast() string {
+	return string(prefix) + "/" + ZkPathBc
 }
 
-func (prefix ZK_PATH) response() string {
-	return string(prefix) + "/" + ZK_PATH_RE
+func (prefix ZkPath) response() string {
+	return string(prefix) + "/" + ZkPathRe
 }
 
-func (prefix ZK_PATH) responseNode(nodeId string) string {
-	return string(prefix) + "/" + ZK_PATH_RE + "/" + nodeId
+func (prefix ZkPath) responseNode(nodeId string) string {
+	return string(prefix) + "/" + ZkPathRe + "/" + nodeId
 }
 
-func (prefix ZK_PATH) coordinatorLock() string {
-	return string(prefix) + "/" + ZK_PATH_COOR_LOCK
+func (prefix ZkPath) coordinatorLock() string {
+	return string(prefix) + "/" + ZkPathCoorLock
 }
 
-func (prefix ZK_PATH) version() string {
-	return string(prefix) + "/" + ZK_PATH_VERSION
+func (prefix ZkPath) version() string {
+	return string(prefix) + "/" + ZkPathVersion
 }
 
-func (prefix ZK_PATH) coordinatorInitLock() string {
-	return string(prefix) + "/" + ZK_PATH_INIT_LOCK
+func (prefix ZkPath) coordinatorInitLock() string {
+	return string(prefix) + "/" + ZkPathInitLock
 }

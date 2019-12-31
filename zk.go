@@ -1,46 +1,53 @@
 package coordinator
 
-const ZkPathRc = "REGISTER_CENTER"
-const ZkPathBc = "BROADCAST"
-const ZkPathRe = "RESPONSE"
-const ZkPathCoorLock = "LOCK_COORDINATOR"
-const ZkPathVersion = "VERSION"
-const ZkPathInitLock = "LOCK_INIT"
+import "strings"
+
+const ZkPathRc = "/REGISTER_CENTER"
+const ZkPathBc = "/BROADCAST"
+const ZkPathCoordinateLock = "/COORDINATOR"
+const ZkPathVersion = "/PATH_INIT"
+const ZKPathACK = "/ACK"
 
 type ZkPath string
 
+func (prefix ZkPath) trim() string {
+	return strings.TrimRight(string(prefix), "/")
+}
+
+func (prefix ZkPath) ack() string {
+	return prefix.trim() + ZKPathACK
+}
+
+func (prefix ZkPath) ackChild(nodeId string) string {
+	return prefix.ack() + "/" + nodeId
+}
+
+// /
 func (prefix ZkPath) root() string {
-	return string(prefix)
+	return prefix.trim()
 }
 
+// /VERSION
+func (prefix ZkPath) pathInitLock() string {
+	return prefix.trim() + ZkPathVersion
+}
+
+// /REGISTER_CENTER
 func (prefix ZkPath) registerCenter() string {
-	return string(prefix) + "/" + ZkPathRc
+	return prefix.trim() + ZkPathRc
 }
 
+// /REGISTER_CENTER/nodeId
 func (prefix ZkPath) registerCenterNode(nodeId string) string {
-	return string(prefix) + "/" + ZkPathRc + "/" + nodeId
+	return prefix.trim() + ZkPathRc + "/" + nodeId
 }
 
+// /BROADCAST
 func (prefix ZkPath) broadCast() string {
-	return string(prefix) + "/" + ZkPathBc
+	return prefix.trim() + ZkPathBc
 }
 
-func (prefix ZkPath) response() string {
-	return string(prefix) + "/" + ZkPathRe
-}
-
-func (prefix ZkPath) responseNode(nodeId string) string {
-	return string(prefix) + "/" + ZkPathRe + "/" + nodeId
-}
-
+// /LOCK_COORDINATOR
 func (prefix ZkPath) coordinatorLock() string {
-	return string(prefix) + "/" + ZkPathCoorLock
-}
-
-func (prefix ZkPath) version() string {
-	return string(prefix) + "/" + ZkPathVersion
-}
-
-func (prefix ZkPath) coordinatorInitLock() string {
-	return string(prefix) + "/" + ZkPathInitLock
+	return prefix.trim() + ZkPathCoordinateLock
 }

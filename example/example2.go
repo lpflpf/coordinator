@@ -15,8 +15,9 @@ type Range struct {
 	End   int
 }
 type RangeSharding struct {
-	version string
-	Data    map[string]Range
+	version   string
+	Data      map[string]Range
+	RangeSize int
 }
 
 // 编码和解码，保存于zk broadcast中
@@ -48,20 +49,17 @@ func (sharding *RangeSharding) Version() string {
 	return sharding.version
 }
 
-type RangeStrategy struct{}
-
-var RangeSize = 5120
-
-func (strategy RangeStrategy) ReBalance(sharding coordinator.Sharding, currentLiveNodes []string) coordinator.Sharding {
+func (sharding *RangeSharding) ReBalance(currentLiveNodes []string) coordinator.Sharding {
 	sort.Strings(currentLiveNodes)
 
 	newSharding := &RangeSharding{
-		version: sharding.Version(),
-		Data:    map[string]Range{},
+		version:   sharding.Version(),
+		Data:      map[string]Range{},
+		RangeSize: sharding.RangeSize,
 	}
 
-	remainder := RangeSize % len(currentLiveNodes)
-	step := RangeSize / len(currentLiveNodes)
+	remainder := sharding.RangeSize % len(currentLiveNodes)
+	step := sharding.RangeSize / len(currentLiveNodes)
 	var shift, begin int
 
 	for idx, nodeId := range currentLiveNodes {
@@ -80,16 +78,18 @@ func (strategy RangeStrategy) ReBalance(sharding coordinator.Sharding, currentLi
 	return newSharding
 }
 
+var running bool
+
 func main() {
 	zkServer := []string{"127.0.0.1:10690", "127.0.0.1:10693", "127.0.0.1:10696"}
-	sharding := &RangeSharding{version: "v1.0"}
+	sharding := &RangeSharding{version: "v1.0", RangeSize: 24}
 	hostname, _ := os.Hostname()
 	nodeId := hostname + "_" + strconv.Itoa(os.Getpid())
 	node := &coordinator.Node{
 		Id:       nodeId,
 		ZkPath:   "/engineMsg",
 		Sharding: sharding,
-		Strategy: RangeStrategy{},
+		WaitAckTimeout: 5 * time.Second,
 	}
 
 	_ = node.Start(zkServer, 5*time.Second)
@@ -100,10 +100,12 @@ func main() {
 			if shard.Status == coordinator.RUNNING {
 				sharding = shard.NewSharding.(*RangeSharding)
 				fmt.Println("CLIENT | update sharding ", shard.NewSharding.(*RangeSharding))
+				running = true
 				// 更新sharding 后，响应ack
 			} else if shard.Status == coordinator.STOP {
 				fmt.Println("CLIENT | update status, sharding stop")
 				// when job stop, response channel 【对于暂停任务较慢的服务比较重要】
+				running = false
 			}
 
 			time.Sleep(time.Second)
@@ -114,7 +116,7 @@ func main() {
 
 	iter := 0
 	for {
-		if !node.Stop {
+		if running {
 			if val, ok := sharding.Data[nodeId]; ok {
 				fmt.Println(val)
 			}

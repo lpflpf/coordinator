@@ -34,9 +34,7 @@ type Node struct {
 	Sharding       Sharding       // 定义的Sharding, Job 也由此传入
 	WaitAckTimeout time.Duration  // 等待ack 超时时间， 默认5s
 	event          chan Event     // 下发的Sharding变更消息
-	Strategy       Strategy       // reBalance 策略
 	conn           *zk.Conn       // zookeeper 连接
-	Stop           bool           // 暂停标识
 	close          chan None      // 关闭信号
 	wg             sync.WaitGroup // 等待协程关闭
 }
@@ -48,14 +46,11 @@ func (node *Node) Listener() chan Event {
 // start method will create a coordinator, listen coordinator broadcast.
 // strategy must be implement by user.
 func (node *Node) Start(zkServers []string, timeout time.Duration) (err error) {
-	node.Stop = true
 	node.close = make(chan None)
 	node.event = make(chan Event)
+	Logger.SetPrefix("COORDINATOR | ")
 	if node.WaitAckTimeout == 0 {
-		node.WaitAckTimeout = time.Second
-	}
-	if node.Strategy == nil {
-		node.Strategy = SimpleStrategy{}
+		node.WaitAckTimeout = 5 * time.Second
 	}
 	if node.conn, err = node.newConn(zkServers, timeout); err != nil {
 		return err
@@ -101,11 +96,11 @@ func (node *Node) getAckNodeName(nodeId string, version int32) string {
 
 // 等待 node 的返回
 func (node *Node) waitAck(nodes []string, version int32) bool {
-	for i := 0; i < 10; i++ {
-		time.Sleep(node.WaitAckTimeout)
+	for i := 0; time.Duration(i)*time.Second < node.WaitAckTimeout; i++ {
+		time.Sleep(time.Second)
 		ackChildren, _, err := node.conn.Children(node.ZkPath.ack())
 		if err != nil {
-			Logger.Println("COORDINATOR | WAIT ACK FAILED, ERR: ", err)
+			Logger.Println("WAIT ACK FAILED, ERR: ", err)
 			continue
 		}
 		if len(ackChildren) == len(nodes) {
@@ -118,7 +113,6 @@ func (node *Node) waitAck(nodes []string, version int32) bool {
 					}
 				}
 			}
-
 			return true
 		}
 	}
@@ -162,7 +156,7 @@ func (node *Node) diagnosis() {
 	path := node.ZkPath.broadCast()
 	once := sync.Once{}
 	for {
-		data, state, event, err := node.conn.GetW(path)
+		data, state, eventWatcher, err := node.conn.GetW(path)
 		if err != nil {
 			Logger.Printf("Path:%v, Err: %v", path, err)
 			continue
@@ -170,38 +164,44 @@ func (node *Node) diagnosis() {
 
 		once.Do(func() {
 			if len(data) != 0 {
-				if string(data) == "stop" {
-					node.Stop = true
-				} else {
-					newSharding := node.Sharding.Decode(data)
-					if newSharding.Version() == node.Sharding.Version() {
-						node.Stop = false
-					} else {
-						node.Stop = true
-					}
+				newSharding := node.Sharding.Decode(data)
+				if newSharding.Version() == node.Sharding.Version() {
+					ack := make(chan None)
+					node.event <- Event{NewSharding: node.Sharding, Resp: ack, Status: RUNNING}
+					<-ack
+					//close(ack)
 				}
 			}
 		})
 
 		select {
-		case <-event:
-			data, _, err := node.conn.Get(path)
-			if err != nil {
-				break
-			}
-			ack := make(chan None)
-			if string(data) == "stop" {
-				node.Stop = true
+		case event := <-eventWatcher:
+			if event.Err != nil { // 其他数据的变更
+				//node.Stop = true
+				ack := make(chan None)
 				node.event <- Event{Resp: ack, Status: STOP}
-			} else {
-				node.Stop = false
-				node.Sharding = node.Sharding.Decode(data)
-				node.event <- Event{NewSharding: node.Sharding, Resp: ack, Status: RUNNING}
-			}
-			<-ack
+				<-ack
+				Logger.Println("Err Event: ", event.Err)
+				//Logger.Fatalln("Err Event: ", event.Err)
+			} else if event.Type == zk.EventNodeDataChanged {
+				data, _, err := node.conn.Get(path)
+				if err != nil {
+					break
+				}
+				ack := make(chan None)
+				if string(data) == "stop" {
+					//node.Stop = true
+					node.event <- Event{Resp: ack, Status: STOP}
+				} else {
+					//node.Stop = false
+					node.Sharding = node.Sharding.Decode(data)
+					node.event <- Event{NewSharding: node.Sharding, Resp: ack, Status: RUNNING}
+				}
+				<-ack
 
-			ackPath := node.ZkPath.ackChild(node.getAckNodeName(node.Id, state.Version+1))
-			node.createOnePath(ackPath, nil)
+				ackPath := node.ZkPath.ackChild(node.getAckNodeName(node.Id, state.Version+1))
+				node.createOnePath(ackPath, nil)
+			}
 		case <-node.close:
 			return
 		}
@@ -264,7 +264,7 @@ func (node *Node) listen() {
 			Logger.Println(err)
 			continue
 		}
-		Logger.Println("COORDINATOR | LISTEN REGISTER_CENTER: ", node.ZkPath.registerCenter())
+		//Logger.Println("LISTEN REGISTER_CENTER: ", node.ZkPath.registerCenter())
 
 		once.Do(func() {
 			node.reBalance()
@@ -272,12 +272,20 @@ func (node *Node) listen() {
 
 		select {
 		case event := <-e:
-			if event.Type == zk.EventNodeChildrenChanged {
-				Logger.Println("COORDINATOR | EVENT RE_BALANCE")
+			if event.Err != nil { // 其他数据的变更
+				//node.Stop = true
+				ack := make(chan None)
+				node.event <- Event{Resp: ack, Status: STOP}
+				//close(ack)
+				<-ack
+				Logger.Println("Err Event: ", event.Err)
+				//Logger.Panic()
+			} else if event.Type == zk.EventNodeChildrenChanged {
+				Logger.Println("EVENT RE_BALANCE")
 				node.reBalance()
 			}
 		case <-ticker:
-			Logger.Println("COORDINATOR | TICKER RE_BALANCE")
+			Logger.Println("TICKER RE_BALANCE")
 			node.reBalance()
 		case <-node.close:
 			return
@@ -289,21 +297,23 @@ func (node *Node) listen() {
 func (node *Node) reBalance() {
 	// 可使用的nodes
 	nodes := node.getComputeNodes()
-	Logger.Println(node.Sharding)
-	newSharding := node.Strategy.ReBalance(node.Sharding, nodes)
+	newSharding := node.Sharding.ReBalance(nodes)
 
+	// 若调整后的sharding 和现有sharding 一样，则无需reBalance
 	if newSharding.Equal(node.Sharding) {
 		return
 	}
 
+	Logger.Println("BROADCAST DATA:", "stop")
+	// balance 分两个阶段，暂停和开启； 防止直接sharding时，同一个时间有两个节点执行同一个任务
 	if ok, err := node.broadcast([]byte("stop"), nodes); !ok {
-		Logger.Println("COORDINATOR | STOP NODE Job FAILED. ERR: ", err)
+		Logger.Println("STOP NODE Job FAILED. ERR: ", err)
 		return
 	}
 
-	node.Sharding = newSharding
+	Logger.Println("BROADCAST DATA:", string(newSharding.Encode()))
 	if ok, err := node.broadcast(newSharding.Encode(), nodes); !ok {
-		Logger.Println("COORDINATOR | BROADCAST SHARDING FAILED. ERR: ", err)
+		Logger.Println("BROADCAST SHARDING FAILED. ERR: ", err)
 		return
 	}
 }
@@ -315,6 +325,6 @@ func (node *Node) getComputeNodes() []string {
 		Logger.Fatal(err)
 	}
 
-	Logger.Println("COORDINATOR CURRENT NODES: ", children)
+	Logger.Println("CURRENT NODES: ", children)
 	return children
 }

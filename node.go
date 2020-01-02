@@ -57,13 +57,10 @@ func (node *Node) Start(zkServers []string, timeout time.Duration) (err error) {
 	}
 
 	node.createPath()
-
-	//go node.listenBroadCast()
 	go node.diagnosis()
 
 	// coordinator
 	go node.listen()
-	//<-afterListen
 
 	node.registerCenter()
 	return nil
@@ -104,13 +101,12 @@ func (node *Node) waitAck(nodes []string, version int32) bool {
 			continue
 		}
 		if len(ackChildren) == len(nodes) {
-			{ // 增加版本的校验，防止高延迟的节点第二次返回，ack 混合
-				sort.Strings(ackChildren)
-				sort.Strings(nodes)
-				for i, nodeId := range nodes {
-					if node.getAckNodeName(nodeId, version) != ackChildren[i] {
-						return false
-					}
+			// 增加版本的校验，防止高延迟的节点第二次返回，ack 混合
+			sort.Strings(ackChildren)
+			sort.Strings(nodes)
+			for i, nodeId := range nodes {
+				if node.getAckNodeName(nodeId, version) != ackChildren[i] {
+					return false
 				}
 			}
 			return true
@@ -169,7 +165,6 @@ func (node *Node) diagnosis() {
 					ack := make(chan None)
 					node.event <- Event{NewSharding: node.Sharding, Resp: ack, Status: RUNNING}
 					<-ack
-					//close(ack)
 				}
 			}
 		})
@@ -177,12 +172,10 @@ func (node *Node) diagnosis() {
 		select {
 		case event := <-eventWatcher:
 			if event.Err != nil { // 其他数据的变更
-				//node.Stop = true
 				ack := make(chan None)
 				node.event <- Event{Resp: ack, Status: STOP}
 				<-ack
 				Logger.Println("Err Event: ", event.Err)
-				//Logger.Fatalln("Err Event: ", event.Err)
 			} else if event.Type == zk.EventNodeDataChanged {
 				data, _, err := node.conn.Get(path)
 				if err != nil {
@@ -190,10 +183,8 @@ func (node *Node) diagnosis() {
 				}
 				ack := make(chan None)
 				if string(data) == "stop" {
-					//node.Stop = true
 					node.event <- Event{Resp: ack, Status: STOP}
 				} else {
-					//node.Stop = false
 					node.Sharding = node.Sharding.Decode(data)
 					node.event <- Event{NewSharding: node.Sharding, Resp: ack, Status: RUNNING}
 				}
@@ -210,11 +201,8 @@ func (node *Node) diagnosis() {
 
 func (node *Node) registerCenter() {
 	_, err := node.conn.Create(node.ZkPath.registerCenterNode(node.Id), nil, zk.FlagEphemeral, zk.WorldACL(zk.PermAll))
-	if err == zk.ErrNodeExists {
-		log.Fatalf("id (%s) has been register by other node. (zkPath:%s)", node.Id,
-			node.ZkPath.registerCenterNode(node.Id))
-	} else if err != nil {
-		log.Fatalf("register center failed.%v, Path:%s", err, node.ZkPath.registerCenterNode(node.Id))
+	if err != nil {
+		log.Fatalf("create path %s failed. Err: %v", node.ZkPath.registerCenterNode(node.Id), err)
 	}
 }
 
@@ -264,8 +252,6 @@ func (node *Node) listen() {
 			Logger.Println(err)
 			continue
 		}
-		//Logger.Println("LISTEN REGISTER_CENTER: ", node.ZkPath.registerCenter())
-
 		once.Do(func() {
 			node.reBalance()
 		})
@@ -273,13 +259,10 @@ func (node *Node) listen() {
 		select {
 		case event := <-e:
 			if event.Err != nil { // 其他数据的变更
-				//node.Stop = true
 				ack := make(chan None)
 				node.event <- Event{Resp: ack, Status: STOP}
-				//close(ack)
 				<-ack
 				Logger.Println("Err Event: ", event.Err)
-				//Logger.Panic()
 			} else if event.Type == zk.EventNodeChildrenChanged {
 				Logger.Println("EVENT RE_BALANCE")
 				node.reBalance()

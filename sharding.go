@@ -82,6 +82,6 @@ func (sharding *SimpleSharding) ReBalance(currentLiveNodes []string) Sharding {
 		}
 	}
 
-	Logger.Println("RE_BALANCE OLD SHARDING", sharding, " NEW SHARDING: ", newSimpleSharding)
+	Logger.Println("RE_BALANCE 【OLD】: ", sharding, "，【NEW】: ", newSimpleSharding)
 	return &newSimpleSharding
 }
